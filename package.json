@@ -1,0 +1,121 @@
+{
+  "name": "@genrate/react-redux",
+  "version": "1.0.0",
+  "description": "Simplified react redux/toolkit implementation",
+  "main": "./lib/src/index.js",
+  "types": "./lib/src/index.d.ts",
+  "files": [
+    "lib/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "cm": "cz",
+    "clean": "rimraf lib",
+    "lint": "eslint src",
+    "prepare": "is-ci || husky install",
+    "semantic-release": "semantic-release",
+    "test:watch": "jest --watch",
+    "test": "jest --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GenRate/genrate-react-redux.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Melvin Maron",
+    "email": "melvinmaron05@gmail.com",
+    "url": "https://github.com/melvinmaron05"
+  },
+  "engines": {
+    "node": ">=12.0"
+  },
+  "keywords": [
+    "typescript",
+    "vscode",
+    "semantic-release",
+    "react",
+    "model",
+    "view",
+    "generate",
+    "input",
+    "output",
+    "approach"
+  ],
+  "bugs": {
+    "url": "https://github.com/GenRate/genrate-react-redux/issues"
+  },
+  "homepage": "https://github.com/GenRate/genrate-react-redux#readme",
+  "peerDependencies": {
+    "@types/react": "^16.8 || ^17.0 || ^18.0",
+    "@types/react-dom": "^16.8 || ^17.0 || ^18.0",
+    "@reduxjs/toolkit": "^1",
+    "react": "^16.8 || ^17.0 || ^18.0",
+    "react-dom": "^16.8 || ^17.0 || ^18.0",
+    "react-redux": "^8.0.4"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "required": true
+    },
+    "@types/react-dom": {
+      "required": true
+    },
+    "@reduxjs/toolkit": {
+      "required": true
+    },
+    "react-dom": {
+      "required": true
+    },
+    "react-redux": {
+      "required": true
+    }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^16.2.3",
+    "@commitlint/config-conventional": "^16.2.1",
+    "@reduxjs/toolkit": "^1.8.5",
+    "@semantic-release/changelog": "^6.0.1",
+    "@semantic-release/commit-analyzer": "^9.0.2",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^8.0.4",
+    "@semantic-release/npm": "^9.0.1",
+    "@semantic-release/release-notes-generator": "^10.0.3",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "@types/jest": "^27.4.1",
+    "@types/md5": "^2.3.2",
+    "@types/node": "^16.11.27",
+    "@types/react": "^18.0.18",
+    "@types/react-dom": "^18.0.6",
+    "@typescript-eslint/eslint-plugin": "^5.19.0",
+    "@typescript-eslint/parser": "^5.19.0",
+    "commitizen": "^4.2.4",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^8.13.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "husky": "^7.0.4",
+    "is-ci": "^3.0.1",
+    "jest": "^27.5.1",
+    "lint-staged": "^12.3.8",
+    "prettier": "^2.6.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^8.0.4",
+    "rimraf": "^3.0.2",
+    "semantic-release": "^19.0.2",
+    "ts-jest": "^27.1.4",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.3"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
