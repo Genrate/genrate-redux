@@ -66,8 +66,44 @@ const Component = () => {
 }
 
 ```
-### RTX Query (Comming Soon)
+### RTX Query 
+```ts
+import { fetch } from '@genrate/react-redux'
 
+const { api, get, post } = fetch('posts')
+
+type User = {
+  id: number,
+  name: string
+}
+
+const UserApi = api({
+  getOne: get<User, number>((id) => `users/${id}`),
+  update: post<User, Partial<User>>((update) => ({ url: `users/${id}`, body: update }))
+  // test: get<User, number>(
+  //   (id) => `users/${id}`, {
+  //     transform: (res) => res.data,
+  //     tags: (_post, _err, id) => [{ type: 'Posts', id: }] // provideTags
+  //   } 
+  // )
+})
+
+
+function Component () => {
+
+  const [user, { isFetching }] = UserApi.useGetQuery(1);
+  const [updateUser, { isLoading }] = UserApi.useUpdateMutation())
+
+  return (
+    <div> 
+      {isFetching ? 'Loading' : user.name }
+      <button onClick={() => updateUser({ name: 'test' })} />
+    </div>
+  )
+}
+
+
+```
 [build-img]: https://github.com/GenRate/genrate-react-redux/actions/workflows/release.yml/badge.svg
 [build-url]: https://github.com/GenRate/genrate-react-redux/actions/workflows/release.yml
 [downloads-img]: https://img.shields.io/npm/dt/@genrate/react-redux
