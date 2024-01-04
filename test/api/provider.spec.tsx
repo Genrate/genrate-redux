@@ -19,14 +19,14 @@ const { api, get, post } = request('Posts', async (arg: any) => {
 
 const UserApi = api({
   get: get<any, number>((num) => num),
-  updatge: post<any, { name: string}>((name) => ({ body: name }))
+  update: post<any, { name: string}>((name) => ({ body: name }))
 })
 
 describe('ApiProvider', () => {
   test('ApiProvider allows a user to make queries without a traditional Redux setup', async () => {
     function User() {
       const [value, setValue] = React.useState(0)
-
+      
       const { isFetching } = UserApi.useGetQuery(1, {
         skip: value < 1,
       })

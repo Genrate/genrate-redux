@@ -1,6 +1,6 @@
 import React, { ReactElement } from 'react'
 import {cleanup, fireEvent, render} from '@testing-library/react'
-import { select, slice } from "../src";
+import { select, model } from "../src";
 import { configureStore, PayloadAction } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 
@@ -15,15 +15,19 @@ type TestSlice = {
 
 const state: TestSlice = { num: 0, car: {}, samples:['apple'] };
 
-const testSlice = slice('test', state, {
-  setWord(state, action: PayloadAction<string>) {
-    state.word = action.payload;
-  },
-  setNum(state, nums: PayloadAction<[number, number]>) {
-    state.num = nums.payload[0];
-    state.car = {
-      ...state.car,
-      wheelsNum: nums.payload[1]
+const testSlice = model({
+  name: 'test', 
+  initialState: state, 
+  reducers: {
+    setWord(state, action: PayloadAction<string>) {
+      state.word = action.payload;
+    },
+    setNum(state, nums: PayloadAction<[number, number]>) {
+      state.num = nums.payload[0];
+      state.car = {
+        ...state.car,
+        wheelsNum: nums.payload[1]
+      }
     }
   }
 })
@@ -35,12 +39,16 @@ const state2 = {
   list: [testSlice]
 }
 
-const testSlice2 = slice('test2', state2, {
-  add(state, action: PayloadAction<Partial<TestSlice>>) {
-    state.list.push({ ...action.payload } as TestSlice)
-  },
-  setSingle(state, action: PayloadAction<TestSlice>) {
-    state.single = action.payload
+const testSlice2 = model({
+  name: 'test2', 
+  initialState: state2, 
+  reducers: {
+    add(state, action) {
+      state.list.push({ ...action.payload })
+    },
+    setSingle(state, action) {
+      state.single = action.payload
+    }
   }
 })
 
@@ -52,9 +60,8 @@ export const store = configureStore({
 })
 
 const TestComponent = () => {
-  const word = testSlice.word.use();
-
-  const setWord = testSlice.setWord.use(); 
+  const word = testSlice.word.useMe();
+  const setWord = testSlice.setWord.useMe()
 
   return (
     <div>
@@ -68,12 +75,12 @@ const TestComponent = () => {
 
 
 const TestComponent2 = () => {
-  const num = testSlice.use(state => state.num);
-  const wheels = testSlice.car.use(state => state && state.wheelsNum);
+  const num = testSlice.useMe(state => state.num);
+  const wheels = testSlice.car.useMe(state => state && state.wheelsNum);
 
-  const setNum = testSlice.setNum.use();
+  const setNum = testSlice.setNum.useMe();
   
-  const total = allNum.use();
+  const total = allNum.useMe();
 
   return (
     <div>
@@ -88,10 +95,10 @@ const TestComponent2 = () => {
 }
 
 const TestComponent3 = () => {
-  const { list, single } = testSlice2.use();
-  const add = testSlice2.add.use();
-  const setSingle = testSlice2.setSingle.use();
-
+  const { list, single } = testSlice2.useMe();
+  const add = testSlice2.add.useMe();
+  const setSingle = testSlice2.setSingle.useMe();
+  
   return (
     <div>
       <button id="add" onClick={() => {
@@ -174,19 +181,32 @@ describe('index', () => {
     });
 
     it('should throw and slice instance error', () => {
+      let err: Error = new Error('');
       try {
-        slice('test4', testSlice, {})
+        model({ 
+          name: 'test4', 
+          initialState: testSlice, 
+          reducers: {}
+        })
       } catch (e) {
-        expect((e as Error).message).toBe('The whole state cannot be a slice instance');
+        err = e as Error;
       }
+
+      expect((err as Error).message).toBe('The whole state cannot be a slice instance');
     });
 
     it('should throw and duplicate error', () => {
+      let err: Error = new Error('');
       try {
-        slice('test', {}, {})
+        model({
+          name: 'test', 
+          initialState: {}, 
+          reducers: {}
+        })
       } catch (e) {
-        expect((e as Error).message).toBe('Duplicate slice name: test');
+        err = e as Error;
       }
+      expect((err as Error).message).toBe('Duplicate slice name: test');
     });
   });
 });

@@ -35,7 +35,7 @@ type RequestFn<
   T extends string,
   RP extends string,
   B extends EndpointBuilder<Q, T, RP>,
-  FN extends <R, P>(build: B) => EndpointDefinition<P, Q, T, R, RP>
+  FN extends <R, P>(build: B) => EndpointDefinition<P, Q, T, R, RP>,
 > = FN;
 
 type CustomDefinitions<BQ extends BaseQueryFn, Q extends Record<string, any>> = {
@@ -113,7 +113,7 @@ export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQ
   return {
     api<
       Q extends Record<string, any>,
-      Options extends Omit<CreateApiOptions<BQ, EndpointDefinitions, string, string>, 'endpoints' | 'baseQuery'>
+      Options extends Omit<CreateApiOptions<BQ, EndpointDefinitions, string, string>, 'endpoints' | 'baseQuery'>,
     >(queries: Q, options?: Options) {
       const reducerPath = options?.reducerPath ?? `${name}Api`;
       return createApi({

@@ -14,7 +14,7 @@ npm install @genrate/react-redux
 
 ### Slice
 ```ts
-import { slice } from '@genrate/react-redux'
+import { model } from '@genrate/react-redux'
 import { PayloadAction } from '@reduxjs/toolkit';
 
 export type UserType = {
@@ -23,11 +23,21 @@ export type UserType = {
   remember: string,
 }
 
-const initial = {} as UserType
+const initialState = {} as UserType
 
-export default slice('user', initial, {
-  set(state, action: PayloadAction<UserType>) {
-    Object.assign(state, action.payload)
+export default model({
+  
+  // redux state name
+  name: 'user', 
+  
+  // initial state value
+  initialState, 
+  
+  // action reducers
+  reducers: {
+    set(state, action: PayloadAction<UserType>) {
+      Object.assign(state, action.payload)
+    }
   }
 })
 
@@ -36,7 +46,7 @@ export default slice('user', initial, {
 ### Slice in react
 
 ```ts
-import User from './slice/user'
+import User from './models/user'
 
 const Component = () => {
 
@@ -90,7 +100,7 @@ const UserApi = api({
 
 
 function Component () => {
-
+  
   const [user, { isFetching }] = UserApi.useGetQuery(1);
   const [updateUser, { isLoading }] = UserApi.useUpdateMutation())
 

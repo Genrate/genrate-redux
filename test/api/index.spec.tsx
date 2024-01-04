@@ -1,22 +1,12 @@
-import { configureStore, createAction, createReducer } from '@reduxjs/toolkit'
+import { configureStore } from '@reduxjs/toolkit'
 import type {
   Api,
-  MutationDefinition,
-  QueryDefinition,
 } from '@reduxjs/toolkit/query'
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query'
-import type { FetchBaseQueryMeta } from '@reduxjs/toolkit/dist/query/fetchBaseQuery'
 
 import {
   ANY,
   expectType,
-  expectExactType,
-  setupApiStore,
-  waitMs,
-  getSerializedHeaders,
 } from '../helpers'
-import { server } from './server'
-import { rest } from 'msw'
 import { fetch } from '../../src/api'
 
 const originalEnv = process.env.NODE_ENV
@@ -40,6 +30,7 @@ test('sensible defaults', () => {
   const UserApi = api({
     get: get<any, number>((id) => ({ url: `user/${id}`}))
   })
+  
 
   configureStore({
     reducer: {
@@ -47,6 +38,7 @@ test('sensible defaults', () => {
     },
     middleware: (gDM) => gDM().concat(UserApi.middleware),
   })
+
   expect(UserApi.reducerPath).toBe('userApi')
 
   type TagTypes = typeof api extends Api<any, any, any, infer E>

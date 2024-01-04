@@ -11,11 +11,11 @@ module.exports = {
     '<rootDir>/src/**/*.tsx',
     '!<rootDir>/src/types/**/*.ts',
   ],
-  globals: {
-    'ts-jest': {
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {
       diagnostics: false,
       isolatedModules: true,
-    },
+    }]
   },
   setupFilesAfterEnv: ['<rootDir>/jest-setup.ts']
 };
