@@ -1,6 +1,6 @@
-import React, { ReactElement } from 'react'
+import React from 'react'
 import {cleanup, fireEvent, render} from '@testing-library/react'
-import { select, model } from "../src";
+import { select, model,  } from "../src";
 import { configureStore, PayloadAction } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 
@@ -32,7 +32,7 @@ const testSlice = model({
   }
 })
 
-const allNum = select([testSlice.num, testSlice.car.wheelsNum], (num, wheels) => (num || 0) + (wheels || 0))
+const allNum = select([testSlice.num], [(_state: any, num: number) => num], (num: any, wheels: any) => (num || 0) + (wheels || 0))
 
 const state2 = {
   single: testSlice,
@@ -60,8 +60,8 @@ export const store = configureStore({
 })
 
 const TestComponent = () => {
-  const word = testSlice.word.useMe();
-  const setWord = testSlice.setWord.useMe()
+  const word = testSlice.word.useAll();
+  const setWord = testSlice.setWord.useAction()
 
   return (
     <div>
@@ -73,14 +73,13 @@ const TestComponent = () => {
   )
 }
 
-
 const TestComponent2 = () => {
-  const num = testSlice.useMe(state => state.num);
-  const wheels = testSlice.car.useMe(state => state && state.wheelsNum);
+  const num = testSlice.useNum();
+  const wheels = testSlice.car.useWheelsNum()
 
-  const setNum = testSlice.setNum.useMe();
+  const setNum = testSlice.setNum.useAction();
   
-  const total = allNum.useMe();
+  const total = allNum.useSelect(wheels);
 
   return (
     <div>
@@ -95,9 +94,12 @@ const TestComponent2 = () => {
 }
 
 const TestComponent3 = () => {
-  const { list, single } = testSlice2.useMe();
-  const add = testSlice2.add.useMe();
-  const setSingle = testSlice2.setSingle.useMe();
+  const { single } = testSlice2.useAll();  
+
+  const list = testSlice2.useList();
+
+  const add = testSlice2.add.useAction();
+  const setSingle = testSlice2.setSingle.useAction();
   
   return (
     <div>

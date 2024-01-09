@@ -1,6 +1,6 @@
 {
   "name": "@genrate/react-redux",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Simplified react redux/toolkit implementation",
   "main": "./lib/src/index.js",
   "types": "./lib/src/index.d.ts",
@@ -121,5 +121,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "re-reselect": "^5.0.0",
+    "reselect": "^5.0.1"
   }
 }

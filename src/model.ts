@@ -12,13 +12,19 @@ import {
   createSlice,
 } from '@reduxjs/toolkit';
 
-import { EqualityFn, Selector, useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { Selector, SelectorArray } from 'reselect';
+import { createCachedSelector } from 're-reselect';
 
-type ValidateState<S> = S extends string | number | boolean | Date | string[] | number[] | boolean[] | Date[]
-  ? S
-  : S extends Model
-    ? S['$$state']
-    : { [K in keyof S]: ValidateState<S[K]> };
+type NativeType = string | number | boolean | Date;
+
+// type ActualType<S> = S extends ModelType ? S['$$type'] : S;
+
+type ActualState<S> = S extends ModelCore
+  ? S['$$state']
+  : S extends NativeType | NativeType[]
+    ? S
+    : { [K in keyof S]: ActualState<S[K]> };
 
 type StateActions<A extends CaseReducerActions<SliceCaseReducers<any>, string>> = {
   [K in keyof A]: (
@@ -26,62 +32,126 @@ type StateActions<A extends CaseReducerActions<SliceCaseReducers<any>, string>> 
   ) => ReturnType<A[K]> extends Action ? Dispatch<ReturnType<A[K]>> : void;
 };
 
-type AddActions<S> = S extends string | number | boolean | Date | string[] | number[] | boolean[] | Date[]
-  ? ValidateState<S>
-  : S extends Model
+type AddActions<S> = S extends NativeType | NativeType[]
+  ? S
+  : S extends ModelCore
     ? S['$$state'] & StateActions<CaseReducerActions<S['$$actions'], string>>
     : { [K in keyof S]: AddActions<S[K]> };
 
-type HookFn<S> = <TState = S, Selected = S>(
-  selector?: (state: TState) => Selected,
-  equalityFn?: EqualityFn<Selected> | undefined
-) => AddActions<Selected>;
+type HookFn<S> = () => AddActions<S>;
 
-type AddHookFn<Type> = Type extends string | number | boolean | Date | string[] | number[] | boolean[] | Date[]
-  ? Type & { useMe: HookFn<Type> }
-  : WithHookFn<Type> & { useMe: HookFn<Type> };
+type AddHookFn<M> = M extends NativeType | NativeType[] ? ModelType<M> : WithHookFn<M> & ModelType<M>;
 
-type WithHookFn<T> = { [K in keyof T]-?: AddHookFn<T[K]> };
+type WithHookFn<T> = { [K in keyof T]-?: AddHookFn<T[K]> } & {
+  [K in keyof T as `use${Capitalize<Extract<K, string>>}`]-?: HookFn<T[K]>;
+};
 
 type WithHookAction<T extends CaseReducerActions<SliceCaseReducers<any>, string>> = {
-  [K in keyof T]: T[K] & {
-    useMe: () => (...payloads: Parameters<T[K]>) => ReturnType<T[K]> extends Action ? Dispatch<ReturnType<T[K]>> : void;
+  [K in keyof T]-?: {
+    useAction: () => (
+      ...payloads: Parameters<T[K]>
+    ) => ReturnType<T[K]> extends Action ? Dispatch<ReturnType<T[K]>> : void;
+  } & {
+    [K in keyof T as `use${Capitalize<Extract<K, string>>}`]-?: (
+      ...payloads: Parameters<T[K]>
+    ) => ReturnType<T[K]> extends Action ? Dispatch<ReturnType<T[K]>> : void;
   };
 };
+
+type ModelType<T> = {
+  $$type: T;
+  $$selector: Selector<ActualState<T>, ActualState<T>>;
+  useAll: HookFn<T>;
+};
+
+export type ModelCore<State = any, A = any> = {
+  $$reducer: Slice['reducer'];
+  $$name: Slice['name'];
+  $$state: ActualState<State>;
+  $$actions: A;
+} & ModelType<State>;
 
 type Model<
   State = any,
-  A extends ValidateSliceCaseReducers<ValidateState<State>, SliceCaseReducers<ValidateState<State>>> = any,
-> = WithHookFn<State> &
-  WithHookAction<CaseReducerActions<A, string>> & {
-    $$reducer: Slice['reducer'];
-    $$name: Slice['name'];
-    $$selector: Selector<ValidateState<State>, ValidateState<State>>;
-    $$state: ValidateState<State>;
-    $$actions: A;
-    useMe: HookFn<State>;
-  };
+  A extends ValidateSliceCaseReducers<ActualState<State>, SliceCaseReducers<ActualState<State>>> = any,
+> = ModelCore<State, A> & WithHookFn<State> & WithHookAction<CaseReducerActions<A, string>>;
 
-type SelectArgs<T extends unknown[]> = {
-  [index in keyof T]: T[index] extends T[number] ? T[index] : unknown;
+type ModelTypeArgs<D extends Array<ModelType<any>>> = {
+  [index in keyof D]: D[index]['$$type'] & { $$model: true };
 };
-
-type SelectorKey<S, R> = { $$selector: Selector<S, R> };
 
 const $$GENRATE_REDUX = {
   selectors: {} as { [key: string]: any },
   nestedSlices: {} as { [key: string]: string[] },
 };
 
-export function select<D extends unknown[], A extends (...args: SelectArgs<D>) => unknown, R>(
-  selectors: [...D],
-  select: A
-) {
-  const parents = (selectors as Array<D[keyof D] & SelectorKey<D[keyof D], D>>).map((s) => s.$$selector);
+type OmitKeys<K extends any[], T extends any[]> = T extends [...K, ...infer R] ? R : never;
 
-  const newSelector = createSelector(parents, select as (...args: unknown[]) => R);
-  (newSelector as any).useMe = () => useSelector(newSelector);
-  return newSelector as typeof newSelector & { useMe: () => ReturnType<A> };
+type SelectResult<F extends (...args: any[]) => any, S = any> = {
+  (state: S): ReturnType<F>;
+  useSelect: () => ReturnType<F>;
+};
+
+type SelectResultWithArgs<D extends Array<ModelType<any>>, F extends (...args: any[]) => any, S = any> = {
+  (state: S, ...args: OmitKeys<ModelTypeArgs<D>, Parameters<F>>): ReturnType<F>;
+  useSelect: (...args: OmitKeys<ModelTypeArgs<D>, Parameters<F>>) => ReturnType<F>;
+};
+
+function selectFn<
+  D extends Array<ModelType<any>>,
+  A extends SelectorArray,
+  C extends (...res: [...ModelTypeArgs<D>, ...{ [K in keyof A]: ReturnType<A[K]> }]) => unknown,
+  AC extends (...res: ModelTypeArgs<D>) => unknown,
+>(selectors: [...D], args: A | never[], combiner: C | AC) {
+  const parents = [...selectors.map((selector) => selector.$$selector), ...args];
+
+  let selector: any;
+  if (args.length > 0) {
+    selector = createCachedSelector(
+      parents,
+      combiner as unknown as (...arg: any[]) => ReturnType<C>
+    )((...args) =>
+      args
+        .splice(selectors.length - 1)
+        .map((i) => JSON.stringify(args[i - 1]))
+        .join('|')
+    );
+
+    selector.useSelect = (...args: OmitKeys<ModelTypeArgs<D>, Parameters<C>>) =>
+      useSelector((state) => selector(state, ...args));
+  } else {
+    selector = createSelector(parents, combiner);
+
+    selector.useSelect = () => useSelector(selector);
+  }
+
+  return selector as <State = any>(state: State, ...args: OmitKeys<ModelTypeArgs<D>, Parameters<C>>) => ReturnType<C>;
+}
+
+export function select<D extends Array<ModelType<any>>, AC extends (...res: ModelTypeArgs<D>) => unknown>(
+  selectors: [...D],
+  combiner?: AC
+): SelectResult<AC>;
+export function select<
+  D extends Array<ModelType<any>>,
+  A extends SelectorArray,
+  C extends (...res: [...ModelTypeArgs<D>, ...{ [K in keyof A]: ReturnType<A[K]> }]) => unknown,
+>(selectors: [...D], args: A, combiner?: C): SelectResultWithArgs<D, C>;
+export function select<
+  D extends Array<ModelType<any>>,
+  A extends SelectorArray,
+  C extends (...res: [...ModelTypeArgs<D>, ...{ [K in keyof A]: ReturnType<A[K]> }]) => unknown,
+  AC extends (...res: ModelTypeArgs<D>) => unknown,
+>(selectors: [...D], args: A | AC, combiner?: C) {
+  if (Array.isArray(args)) {
+    if (combiner) {
+      return selectFn(selectors, args as A, combiner) as SelectResultWithArgs<D, C>;
+    } else {
+      throw new Error('Missing Combiner Function');
+    }
+  }
+
+  return selectFn(selectors, [], args as AC);
 }
 
 function withActionProxy<D>(data: D, keys: string[], dispatch: Dispatch): D {
@@ -114,43 +184,63 @@ function withActionProxy<D>(data: D, keys: string[], dispatch: Dispatch): D {
   return { ...res, ...actions };
 }
 
-function selectProxy<D>(data: D, keys: string[], selector: any): D {
+function addSelector<D>(key: string, keys: string[], selector: any) {
   const { selectors } = $$GENRATE_REDUX;
 
-  const useMe = (select?: (state: D) => any) => {
+  const selectKey: string = [...keys, key].join('|');
+
+  if (!selectors[selectKey]) {
+    selectors[selectKey] = createSelector([selector], (state: D) => state && state[key as keyof D]);
+  }
+
+  return selectors[selectKey];
+}
+
+function selectProxy<D>(data: D, keys: string[], selector: any): D {
+  const useAll = () => {
     const dispatch = useDispatch();
-    const selected = useSelector(select ? createSelector([selector], select) : selector);
+    const selected = useSelector(selector);
     return withActionProxy(selected, keys, dispatch);
   };
 
   return new Proxy(
-    { ...data, $$keys: keys, $$selector: selector, useMe },
+    { ...data, $$keys: keys, $$selector: selector, useAll },
     {
       get(t, k: string) {
         if (k.startsWith('$$')) {
           return t[k as keyof D];
-        } else if (k == 'useMe') {
-          return useMe;
+        } else if (k.startsWith('use')) {
+          if (k == 'useAll') {
+            return useAll;
+          }
+
+          const useKey = k.substring(3);
+          const usekey = `${useKey.charAt(0).toLowerCase()}${useKey.substring(1)}`;
+
+          const key = t[useKey as keyof D] ? useKey : usekey;
+
+          const newSelector = addSelector(key, t.$$keys, selector);
+
+          return () => {
+            const dispatch = useDispatch();
+            const selected = useSelector(newSelector);
+            return withActionProxy(selected, [...t.$$keys, key], dispatch);
+          };
         }
 
-        t.$$keys.push(k);
-        const newSelectKey: string = t.$$keys.join('|');
+        const newSelector = addSelector(k, t.$$keys, selector);
 
-        if (!selectors[newSelectKey]) {
-          selectors[newSelectKey] = createSelector([selector], (state: D) => state && state[k as keyof D]);
-        }
-
-        return selectProxy(t[k as keyof D], t.$$keys, selectors[newSelectKey]);
+        return selectProxy(t[k as keyof D], [...t.$$keys, k], newSelector);
       },
     }
   );
 }
 
-function getInitial<S>(state: S, cb: (parent: string, state: Model) => void, parent?: string): ValidateState<S> {
-  if (state && (state as Model).$$reducer) {
+function getInitial<S>(state: S, cb: (parent: string, state: Model) => void, parent?: string): ActualState<S> {
+  if (state && (state as unknown as Model).$$reducer) {
     if (parent) {
-      cb(parent, state as Model);
-      return (state as Model).$$state;
+      cb(parent, state as unknown as Model);
+      return (state as unknown as Model).$$state;
     } else {
       throw new Error('The whole state cannot be a slice instance');
     }
@@ -159,10 +249,10 @@ function getInitial<S>(state: S, cb: (parent: string, state: Model) => void, par
   if (Array.isArray(state)) {
     if (state[0] && (state[0] as Model).$$reducer) {
       cb(parent ? `${parent}/0` : '0', state[0] as Model);
-      return [] as ValidateState<S>;
+      return [] as ActualState<S>;
     }
 
-    return state.map((s, index: number) => getInitial(s, cb, `${index}`)) as ValidateState<S>;
+    return state.map((s, index: number) => getInitial(s, cb, `${index}`)) as ActualState<S>;
   } else if (typeof state == 'object') {
     if (state) {
       const keys = Object.keys(state);
@@ -178,7 +268,7 @@ function getInitial<S>(state: S, cb: (parent: string, state: Model) => void, par
     }
   }
 
-  return state as ValidateState<S>;
+  return state as ActualState<S>;
 }
 
 function applyNested<S>(state: S, keys: string[], action: any, reducer: Reducer) {
@@ -194,12 +284,12 @@ function applyNested<S>(state: S, keys: string[], action: any, reducer: Reducer)
   }
 }
 
-export function model<S, A extends SliceCaseReducers<ValidateState<S>>>(
-  options: CreateSliceOptions<ValidateState<S>, A>
+export function model<S, R extends SliceCaseReducers<ActualState<S>>>(
+  options: { initialState: S } & Omit<CreateSliceOptions<ActualState<S>, R>, 'initialState'>
 ) {
   const { name, initialState, reducers } = options;
   const { nestedSlices } = $$GENRATE_REDUX;
-  const nestedActions: ValidateSliceCaseReducers<ValidateState<S>, SliceCaseReducers<ValidateState<S>>> = {};
+  const nestedActions: ValidateSliceCaseReducers<ActualState<S>, SliceCaseReducers<ActualState<S>>> = {};
   const state = getInitial(initialState, (k, d) => {
     if (nestedSlices[k]) throw new Error(`Duplicate slice name: ${name}`);
     nestedSlices[`${name}/${k}`] = [];
@@ -212,7 +302,7 @@ export function model<S, A extends SliceCaseReducers<ValidateState<S>>>(
 
       nestedSlices[`${name}/${k}`].push(act);
     }
-  }) as ValidateState<S>;
+  }) as ActualState<S>;
 
   const slice = createSlice({
     ...options,
@@ -232,24 +322,48 @@ export function model<S, A extends SliceCaseReducers<ValidateState<S>>>(
     return state[name];
   };
 
-  return new Proxy({} as Model<S, A>, {
+  return new Proxy({} as Model<S, R>, {
     get(_target, k: string) {
       if (k == '$$reducer') return slice.reducer;
       if (k == '$$selector') return selectors[name];
       if (k == '$$name') return name;
       if (k == '$$state') return initialState;
       if (k == '$$actions') return slice.actions;
-      if (k == 'useMe') {
-        return (select?: (state: S) => any) => {
-          const dispatch = useDispatch();
-          const selected = useSelector(select ? createSelector([selectors[name]], select) : selectors[name]);
-          return withActionProxy(selected, [name], dispatch);
-        };
+
+      if (k.startsWith('use')) {
+        if (k == 'useAll') {
+          return () => {
+            const dispatch = useDispatch();
+            const selected = useSelector(selectors[name]);
+            return withActionProxy(selected, [name], dispatch);
+          };
+        }
+
+        const useKey = k.substring(3);
+        const usekey = `${useKey.charAt(0).toLowerCase()}${useKey.substring(1)}`;
+
+        const action: any = slice.actions[k] || slice.actions[usekey];
+        if (action !== undefined) {
+          return () => {
+            const dispatch = useDispatch();
+            return (payload: any) => dispatch(action(payload));
+          };
+        } else {
+          const key = state[useKey as keyof S] ? useKey : usekey;
+
+          const selector = addSelector(key, [name], selectors[name]);
+
+          return () => {
+            const dispatch = useDispatch();
+            const selected = useSelector(selector);
+            return withActionProxy(selected, [name, key], dispatch);
+          };
+        }
       }
 
       if (slice.actions[k as keyof typeof slice.actions]) {
         const action: any = slice.actions[k as keyof typeof slice.actions];
-        (action as any).useMe = () => {
+        (action as any).useAction = () => {
           const dispatch = useDispatch();
           return (payload: any) => dispatch(action(payload));
         };
@@ -257,13 +371,7 @@ export function model<S, A extends SliceCaseReducers<ValidateState<S>>>(
         return action;
       }
 
-      const keys = [name, k];
-
-      if (!selectors[keys.join('|')]) {
-        selectors[keys.join('|')] = createSelector([selectors[name]], (state) => state[k as keyof S]);
-      }
-
-      return selectProxy(state[k as keyof S], keys, selectors[keys.join('|')]);
+      return selectProxy(state[k as keyof S], [name, k], addSelector(k, [name], selectors[name]));
     },
   });
 }
