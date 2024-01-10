@@ -21,17 +21,19 @@ export type UserType = {
   email: string,
   password: string,
   remember: string,
+  profile: {
+    name: string;
+    hobbies: string[];
+  }
 }
 
-const initialState = {} as UserType
-
-export default model({
+export default model<UserType>({
   
   // redux state name
   name: 'user', 
   
   // initial state value
-  initialState, 
+  initialState: {}, 
   
   // action reducers
   reducers: {
@@ -43,6 +45,88 @@ export default model({
 
 ```
 
+### Nested Slice
+
+```ts
+import { model } from '@genrate/react-redux'
+import { PayloadAction } from '@reduxjs/toolkit';
+
+type CommentType = { 
+  message: string, 
+  likes: number 
+};
+
+const Comment =  model<>({ initialState,  reducers: {
+  setComment(state, action: PayloadAction<string>) {
+    Object.assign(state.message, action.payload)
+  },
+  addLike(state) {
+    Object.assign(state.likes, state.likes + 1)
+  }
+}})
+
+export type Post = {
+  content: string,
+  comments: typeof Comment[]
+}
+
+const Post = model<Post>({
+  name: 'post',
+  initialState: {}
+})
+
+// usage in react 
+
+const Post = () => {
+  const content = Post.useContent()
+  const comments = Post.useComments();
+  
+  return (
+    <div>
+      <span>
+        {content}
+      </span>
+      {comments.map((comment, i) => (
+        <div key={i}>
+          <button onClick={() => comment.addLike()} />    
+          <span>
+            {comment.message}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+```
+
+### Selector 
+
+```ts
+import { select, arg } from '@genrate/react-redux'
+import User from './models/user'
+
+const getProfileName = select([User.profile], (profile) => profile.name);
+
+// selector with arguments
+const hasHobby = select(
+  [User.profile.hobbies],
+  [arg<string>(1)],
+  (hobbies, hobby) => hobbies.find(h => h == hobby);
+)
+
+
+// using on react 
+
+const name = useSelector(getProfile); // 
+const name = getProfile.useSelect();
+
+// with arguments
+const isPlayingBadminton = useSelector(state => hasHobby(state, 'badminton'));
+const isPlayingBasketball = hasHobby.useSelect('basketball');
+
+```
+
 ### Slice in react
 
 ```ts
@@ -51,21 +135,21 @@ import User from './models/user'
 const Component = () => {
 
   // auto memoized selector
-  const user = User.use(); // eq = useSelector(state => state.user)
+  const user = User.useAll(); // eq = useSelector(state => state.user)
 
   // deep selector
 
-  const deep = User.sample.data.use() 
 
   // sampe as 
   // const main = (state) => state.user;
-  // const sample = createSelector([main], state => state.sample)
-  // const data = createSelector([sample], state => state.data)
+  // const profile = createSelector([main], state => state.profile)
+  // const name = createSelector([sample], state => state.name)
   // const deep = useSelector(data);
+  const name = User.profile.useName() 
+
 
   // get action with dispatch
-  const setUser = User.set.use();
-
+  const setUser = User.useSet();
 
   return (
     <div>

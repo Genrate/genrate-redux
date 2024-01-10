@@ -14,11 +14,9 @@ import {
 
 import { useDispatch, useSelector } from 'react-redux';
 import { Selector, SelectorArray } from 'reselect';
-import { createCachedSelector } from 're-reselect';
+import { KeySelector, createCachedSelector } from 're-reselect';
 
 type NativeType = string | number | boolean | Date;
-
-// type ActualType<S> = S extends ModelType ? S['$$type'] : S;
 
 type ActualState<S> = S extends ModelCore
   ? S['$$state']
@@ -40,9 +38,14 @@ type AddActions<S> = S extends NativeType | NativeType[]
 
 type HookFn<S> = () => AddActions<S>;
 
-type AddHookFn<M> = M extends NativeType | NativeType[] ? ModelType<M> : WithHookFn<M> & ModelType<M>;
+type AddHookFn<M> = M extends NativeType | unknown[] ? ModelType<M> : WithHookFn<M> & ModelType<M>;
 
-type WithHookFn<T> = { [K in keyof T]-?: AddHookFn<T[K]> } & {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type ExtractPrivate<T> = T extends `${'use' | '$$'}${infer _X}` ? never : T;
+
+type OnlyPublic<T> = Pick<T, ExtractPrivate<keyof T>>;
+
+type WithHookFn<A, T = Omit<OnlyPublic<A>, 'useAll'>> = { [K in keyof T]-?: AddHookFn<T[K]> } & {
   [K in keyof T as `use${Capitalize<Extract<K, string>>}`]-?: HookFn<T[K]>;
 };
 
@@ -51,16 +54,16 @@ type WithHookAction<T extends CaseReducerActions<SliceCaseReducers<any>, string>
     useAction: () => (
       ...payloads: Parameters<T[K]>
     ) => ReturnType<T[K]> extends Action ? Dispatch<ReturnType<T[K]>> : void;
-  } & {
-    [K in keyof T as `use${Capitalize<Extract<K, string>>}`]-?: (
-      ...payloads: Parameters<T[K]>
-    ) => ReturnType<T[K]> extends Action ? Dispatch<ReturnType<T[K]>> : void;
   };
+} & {
+  [K in keyof T as `use${Capitalize<Extract<K, string>>}`]-?: () => (
+    ...payloads: Parameters<T[K]>
+  ) => ReturnType<T[K]> extends Action ? Dispatch<ReturnType<T[K]>> : void;
 };
 
 type ModelType<T> = {
   $$type: T;
-  $$selector: Selector<ActualState<T>, ActualState<T>>;
+  $$selector: Selector<any, ActualState<T>>;
   useAll: HookFn<T>;
 };
 
@@ -76,8 +79,12 @@ type Model<
   A extends ValidateSliceCaseReducers<ActualState<State>, SliceCaseReducers<ActualState<State>>> = any,
 > = ModelCore<State, A> & WithHookFn<State> & WithHookAction<CaseReducerActions<A, string>>;
 
-type ModelTypeArgs<D extends Array<ModelType<any>>> = {
-  [index in keyof D]: D[index]['$$type'] & { $$model: true };
+type ModelTypeArgs<D extends Array<ModelType<any> | Selector<any, any, []>>> = {
+  [index in keyof D]: D[index] extends ModelType<any>
+    ? D[index]['$$type']
+    : D[index] extends Selector
+      ? ReturnType<D[index]>
+      : never;
 };
 
 const $$GENRATE_REDUX = {
@@ -92,35 +99,36 @@ type SelectResult<F extends (...args: any[]) => any, S = any> = {
   useSelect: () => ReturnType<F>;
 };
 
-type SelectResultWithArgs<D extends Array<ModelType<any>>, F extends (...args: any[]) => any, S = any> = {
+type SelectResultWithArgs<
+  D extends Array<ModelType<any> | Selector<any, any, []>>,
+  F extends (...args: any[]) => any,
+  S = any,
+> = {
   (state: S, ...args: OmitKeys<ModelTypeArgs<D>, Parameters<F>>): ReturnType<F>;
   useSelect: (...args: OmitKeys<ModelTypeArgs<D>, Parameters<F>>) => ReturnType<F>;
 };
 
 function selectFn<
-  D extends Array<ModelType<any>>,
+  D extends Array<ModelType<any> | Selector<any, any, []>>,
   A extends SelectorArray,
   C extends (...res: [...ModelTypeArgs<D>, ...{ [K in keyof A]: ReturnType<A[K]> }]) => unknown,
   AC extends (...res: ModelTypeArgs<D>) => unknown,
->(selectors: [...D], args: A | never[], combiner: C | AC) {
-  const parents = [...selectors.map((selector) => selector.$$selector), ...args];
+>(selectors: [...D], args: A | never[], combiner: C | AC, keySelector?: KeySelector<any>) {
+  const deps = [...selectors.map((selector) => (selector as ModelType<any>).$$selector ?? selector), ...args];
 
   let selector: any;
   if (args.length > 0) {
     selector = createCachedSelector(
-      parents,
+      deps,
       combiner as unknown as (...arg: any[]) => ReturnType<C>
-    )((...args) =>
-      args
-        .splice(selectors.length - 1)
-        .map((i) => JSON.stringify(args[i - 1]))
-        .join('|')
-    );
+    )(keySelector ?? ((_state, ...args) => args.map((v) => JSON.stringify(v)).join('|')));
 
     selector.useSelect = (...args: OmitKeys<ModelTypeArgs<D>, Parameters<C>>) =>
-      useSelector((state) => selector(state, ...args));
+      useSelector((state) => {
+        return selector(state, ...args);
+      });
   } else {
-    selector = createSelector(parents, combiner);
+    selector = createSelector(deps, combiner);
 
     selector.useSelect = () => useSelector(selector);
   }
@@ -128,24 +136,24 @@ function selectFn<
   return selector as <State = any>(state: State, ...args: OmitKeys<ModelTypeArgs<D>, Parameters<C>>) => ReturnType<C>;
 }
 
-export function select<D extends Array<ModelType<any>>, AC extends (...res: ModelTypeArgs<D>) => unknown>(
-  selectors: [...D],
-  combiner?: AC
-): SelectResult<AC>;
 export function select<
-  D extends Array<ModelType<any>>,
+  D extends Array<ModelType<any> | Selector<any, any, []>>,
+  AC extends (...res: ModelTypeArgs<D>) => unknown,
+>(selectors: [...D], combiner?: AC): SelectResult<AC>;
+export function select<
+  D extends Array<ModelType<any> | Selector<any, any, []>>,
   A extends SelectorArray,
   C extends (...res: [...ModelTypeArgs<D>, ...{ [K in keyof A]: ReturnType<A[K]> }]) => unknown,
->(selectors: [...D], args: A, combiner?: C): SelectResultWithArgs<D, C>;
+>(selectors: [...D], args: A, combiner?: C, keySelector?: KeySelector<any>): SelectResultWithArgs<D, C>;
 export function select<
-  D extends Array<ModelType<any>>,
+  D extends Array<ModelType<any> | Selector<any, any, []>>,
   A extends SelectorArray,
   C extends (...res: [...ModelTypeArgs<D>, ...{ [K in keyof A]: ReturnType<A[K]> }]) => unknown,
   AC extends (...res: ModelTypeArgs<D>) => unknown,
->(selectors: [...D], args: A | AC, combiner?: C) {
+>(selectors: [...D], args: A | AC, combiner?: C, keySelector?: KeySelector<any>) {
   if (Array.isArray(args)) {
     if (combiner) {
-      return selectFn(selectors, args as A, combiner) as SelectResultWithArgs<D, C>;
+      return selectFn(selectors, args as A, combiner, keySelector) as SelectResultWithArgs<D, C>;
     } else {
       throw new Error('Missing Combiner Function');
     }
@@ -153,6 +161,11 @@ export function select<
 
   return selectFn(selectors, [], args as AC);
 }
+
+export const arg =
+  <T>(position: number) =>
+  (_: any, ...args: any[]) =>
+    args[position - 1] as T;
 
 function withActionProxy<D>(data: D, keys: string[], dispatch: Dispatch): D {
   const { nestedSlices } = $$GENRATE_REDUX;
