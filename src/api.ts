@@ -127,8 +127,6 @@ export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQ
           }
 
           return definitions;
-
-          // return getDefs({}, queries, Object.keys(queries), build)
         },
         ...options,
       });

@@ -309,7 +309,7 @@ export function model<S, R extends SliceCaseReducers<ActualState<S>>>(
     for (const act in d.$$actions) {
       nestedActions[`${k}/${act}`] = (state, action: PayloadAction<{ data: any; keys: string[] }>) => {
         const keys = action.payload.keys;
-        keys.shift(); // remove slice name
+        keys.shift();
         applyNested(state, keys, { type: `${d.$$name}/${act}`, payload: action.payload.data }, d.$$reducer);
       };
 

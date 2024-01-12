@@ -1,5 +1,5 @@
 {
-  "name": "@genrate/react-redux",
+  "name": "@genrate/redux",
   "version": "1.0.1",
   "description": "Simplified react redux/toolkit implementation",
   "main": "./lib/src/index.js",

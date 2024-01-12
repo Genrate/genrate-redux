@@ -7,14 +7,14 @@
 ## Install
 
 ```bash
-npm install @genrate/react-redux
+npm install @genrate/redux
 ```
 
 ## Usage
 
 ### Slice
 ```ts
-import { model } from '@genrate/react-redux'
+import { model } from '@genrate/redux'
 import { PayloadAction } from '@reduxjs/toolkit';
 
 export type UserType = {
@@ -48,7 +48,7 @@ export default model<UserType>({
 ### Nested Slice
 
 ```ts
-import { model } from '@genrate/react-redux'
+import { model } from '@genrate/redux'
 import { PayloadAction } from '@reduxjs/toolkit';
 
 type CommentType = { 
@@ -103,7 +103,7 @@ const Post = () => {
 ### Selector 
 
 ```ts
-import { select, arg } from '@genrate/react-redux'
+import { select, arg } from '@genrate/redux'
 import User from './models/user'
 
 const getProfileName = select([User.profile], (profile) => profile.name);
@@ -162,7 +162,7 @@ const Component = () => {
 ```
 ### RTX Query 
 ```ts
-import { fetch } from '@genrate/react-redux'
+import { fetch } from '@genrate/redux'
 
 const { api, get, post } = fetch('posts')
 
@@ -198,16 +198,16 @@ function Component () => {
 
 
 ```
-[build-img]: https://github.com/GenRate/genrate-react-redux/actions/workflows/release.yml/badge.svg
-[build-url]: https://github.com/GenRate/genrate-react-redux/actions/workflows/release.yml
-[downloads-img]: https://img.shields.io/npm/dt/@genrate/react-redux
-[downloads-url]: https://www.npmtrends.com/@genrate/react-redux
-[npm-img]: https://img.shields.io/npm/v/@genrate/react-redux
-[npm-url]: https://www.npmjs.com/package/@genrate/react-redux
-[issues-img]: https://img.shields.io/github/issues/GenRate/genrate-react-redux
-[issues-url]: https://github.com/GenRate/genrate-react-redux/issues
-[codecov-img]: https://codecov.io/gh/GenRate/genrate-react-redux/branch/master/graph/badge.svg?token=A0V6BNMPRY
-[codecov-url]: https://codecov.io/gh/GenRate/genrate-react-redux
+[build-img]: https://github.com/GenRate/genrate-redux/actions/workflows/release.yml/badge.svg
+[build-url]: https://github.com/GenRate/genrate-redux/actions/workflows/release.yml
+[downloads-img]: https://img.shields.io/npm/dt/@genrate/redux
+[downloads-url]: https://www.npmtrends.com/@genrate/redux
+[npm-img]: https://img.shields.io/npm/v/@genrate/redux
+[npm-url]: https://www.npmjs.com/package/@genrate/redux
+[issues-img]: https://img.shields.io/github/issues/GenRate/genrate-redux
+[issues-url]: https://github.com/GenRate/genrate-redux/issues
+[codecov-img]: https://codecov.io/gh/GenRate/genrate-redux/branch/master/graph/badge.svg?token=A0V6BNMPRY
+[codecov-url]: https://codecov.io/gh/GenRate/genrate-redux
 [semantic-release-img]: https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg
 [semantic-release-url]: https://github.com/semantic-release/semantic-release
 [commitizen-img]: https://img.shields.io/badge/commitizen-friendly-brightgreen.svg
