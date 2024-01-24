@@ -1,8 +1,8 @@
-# GenRate React
+# GenRate Redux
 
 [![npm package][npm-img]][npm-url] [![Build Status][build-img]][build-url] [![Downloads][downloads-img]][downloads-url] [![Issues][issues-img]][issues-url] [![codecov][codecov-img]][codecov-url] [![Commitizen Friendly][commitizen-img]][commitizen-url] [![Semantic Release][semantic-release-img]][semantic-release-url]
 
-> GenRate React Redux package aims simplify redux implementation
+> GenRate Redux package aims simplify redux implementation
 
 ## Install
 
@@ -14,72 +14,96 @@ npm install @genrate/redux
 
 ### Slice
 ```ts
-import { model } from '@genrate/redux'
+import { model, as  } from '@genrate/redux'
 import { PayloadAction } from '@reduxjs/toolkit';
 
-export type UserType = {
-  email: string,
-  password: string,
-  remember: string,
+const state = {
+  email: as<string>('test@sample.com'), // required
+  password: as<string>(), // optional
+  remember: as<boolean | undefined>(false), // optional with default
   profile: {
-    name: string;
-    hobbies: string[];
+    name: as<string>();
+    hobbies: as<string[]>();
   }
 }
 
-export default model<UserType>({
-  
-  // redux state name
-  name: 'user', 
-  
-  // initial state value
-  initialState: {}, 
-  
-  // action reducers
-  reducers: {
+export default model<UserType>(
+  'user', // slice name
+  state, // slice state
+  { 
+    // reducers
     set(state, action: PayloadAction<UserType>) {
       Object.assign(state, action.payload)
     }
+  }, {
+    // selectors
+    isPlayingBasketball: (state) => state.profile?.hobbies?.indexOf('basketball') > -1
   }
-})
+)
 
 ```
 
 ### Nested Slice
 
 ```ts
-import { model } from '@genrate/redux'
+import { model, as, asModelList } from '@genrate/redux'
 import { PayloadAction } from '@reduxjs/toolkit';
 
-type CommentType = { 
-  message: string, 
-  likes: number 
+const commentState = { 
+  message: as<string>(), 
+  likes: as<number>(0) 
 };
 
-const Comment =  model<>({ initialState,  reducers: {
-  setComment(state, action: PayloadAction<string>) {
-    Object.assign(state.message, action.payload)
+const Comment =  model<>('comment', commentState, {
+  set(state, action: PayloadAction<string>) {
+    state.message = action.payload
   },
   addLike(state) {
-    Object.assign(state.likes, state.likes + 1)
+    state.likes += 1
   }
-}})
+})
 
-export type Post = {
-  content: string,
-  comments: typeof Comment[]
+const postState = {
+  content: as<string>(),
+  newCommentStatus: as<string>('idle'),
+  comments: asModelList(Comment, []) // as type model array
 }
 
-const Post = model<Post>({
-  name: 'post',
-  initialState: {}
-})
+const Post = model<Post>('post', postState, 
+  ({ reducer, asyncThunk }) => ({ // ReducerCreators
+    set: reducer<string>(state, { payload }) {
+      state.content = payload
+    },
+    addComment: asyncThunk(  // async reducer
+      async (comment: string) => {
+        const response = await apiAddComment(comment)
+        return response.data
+      },
+      {
+        pending: state => {
+          state.newCommentStatus = "loading"
+        },
+        fulfilled: (state, action) => {
+          state.newCommentStatus = "idle"
+          state.message = action.payload
+        },
+        rejected: state => {
+          state.newCommentStatus = "failed"
+        },
+      },
+    )
+  }), {
+    commentsWithLikes: (state) => state.comments.filter(c => c.likes > 0)
+  }
+)
 
 // usage in react 
 
 const Post = () => {
   const content = Post.useContent()
-  const comments = Post.useComments();
+  const comments = Post.useCommentsWithLikes();
+
+  const addComment = Post.useAddComment()
   
   return (
     <div>
@@ -88,7 +112,7 @@ const Post = () => {
       </span>
       {comments.map((comment, i) => (
         <div key={i}>
-          <button onClick={() => comment.addLike()} />    
+          <button onClick={() => comment.addLike()} /> // inherit model actions
           <span>
             {comment.message}
           </span>
@@ -115,9 +139,7 @@ const hasHobby = select(
   (hobbies, hobby) => hobbies.find(h => h == hobby);
 )
 
-
 // using on react 
-
 const name = useSelector(getProfile); // 
 const name = getProfile.useSelect();
 
@@ -139,14 +161,12 @@ const Component = () => {
 
   // deep selector
 
-
   // sampe as 
-  // const main = (state) => state.user;
-  // const profile = createSelector([main], state => state.profile)
-  // const name = createSelector([sample], state => state.name)
-  // const deep = useSelector(data);
+  // cachedUser = (state) => state.user;
+  // cachedProfile = createSelector([main], state => state.profile)
+  // cachedName = createSelector([profile], state => state.name)
+  // deep = useSelector(name);
   const name = User.profile.useName() 
-
 
   // get action with dispatch
   const setUser = User.useSet();

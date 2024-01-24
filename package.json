@@ -1,6 +1,6 @@
 {
   "name": "@genrate/redux",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Simplified react redux/toolkit implementation",
   "main": "./lib/src/index.js",
   "types": "./lib/src/index.d.ts",
@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GenRate/genrate-react-redux.git"
+    "url": "git+https://github.com/GenRate/genrate-redux.git"
   },
   "license": "MIT",
   "author": {
@@ -44,9 +44,9 @@
     "approach"
   ],
   "bugs": {
-    "url": "https://github.com/GenRate/genrate-react-redux/issues"
+    "url": "https://github.com/GenRate/genrate-redux/issues"
   },
-  "homepage": "https://github.com/GenRate/genrate-react-redux#readme",
+  "homepage": "https://github.com/GenRate/genrate-redux#readme",
   "peerDependencies": {
     "@reduxjs/toolkit": "^2.0.1",
     "@types/react": "^16.8 || ^17.0 || ^18.0",
