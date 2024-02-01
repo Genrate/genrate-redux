@@ -22,11 +22,13 @@ import { AsyncThunkSliceReducerDefinition, SliceSelectors } from '@reduxjs/toolk
 
 type NativeType = string | number | boolean | Date | undefined | null;
 
-type ActualState<S> = S extends ModelCore
-  ? ActualState<S['$$type']>
+type ActualState<S> = S extends ModelCore<infer T>
+  ? ActualState<T>
   : S extends NativeType | NativeType[]
     ? S
-    : { [K in keyof S]: ActualState<S[K]> };
+    : S extends Record<string, unknown> | unknown[]
+      ? { [K in keyof S]: ActualState<S[K]> }
+      : never;
 
 type StateActions<A extends CaseReducerActions<SliceCaseReducers<any>, string>> = {
   [K in keyof A]: (
@@ -99,12 +101,8 @@ type Model<
   S extends SliceSelectors<ActualState<State>> = SliceSelectors<ActualState<State>>,
 > = ModelCore<State, A, S> & WithHookFn<State> & WithHookAction<CaseReducerActions<A, string>> & WithHookSelector<S>;
 
-type ModelTypeArgs<D extends Array<ModelType<any> | Selector<any, any, []>>> = {
-  [index in keyof D]: D[index] extends ModelType<any>
-    ? D[index]['$$type']
-    : D[index] extends Selector
-      ? ReturnType<D[index]>
-      : never;
+type ModelTypeArgs<D extends Array<ModelType<unknown> | Selector<unknown, unknown, []>>> = {
+  [I in keyof D]: D[I] extends ModelType<infer R> ? R : D[I] extends Selector<any, infer R> ? R : never;
 };
 
 const $$GENRATE_REDUX = {
@@ -133,12 +131,12 @@ export const createModel = buildCreateSlice({
 });
 
 function selectFn<
-  const D extends Array<ModelType<any> | Selector<any, any, []>>,
+  const D extends Array<ModelType<unknown> | Selector<unknown, unknown, []>>,
   const A extends SelectorArray,
-  C extends (...res: ModelTypeArgs<[...D, ...A]>) => unknown,
+  C extends (...res: [...ModelTypeArgs<D>, ...ModelTypeArgs<[...A]>]) => unknown,
   AC extends (...res: ModelTypeArgs<D>) => unknown,
 >(selectors: [...D], args: A | never[], combiner: C | AC, keySelector?: KeySelector<any>) {
-  const deps = [...selectors.map((selector) => (selector as ModelType<any>).$$selector ?? selector), ...args];
+  const deps = [...selectors.map((selector) => (selector as ModelType<unknown>).$$selector ?? selector), ...args];
 
   let selector: any;
   if (args.length > 0) {
@@ -152,7 +150,7 @@ function selectFn<
         return selector(state, ...args);
       });
   } else {
-    selector = createSelector(deps, combiner);
+    selector = createSelector(deps, combiner as (...arg: any[]) => ReturnType<C>);
 
     selector.useSelect = () => useSelector(selector);
   }
@@ -167,12 +165,12 @@ export function select<
 export function select<
   const D extends Array<ModelType<any> | Selector<any, any, []>>,
   const A extends SelectorArray,
-  C extends (...res: ModelTypeArgs<[...D, ...A]>) => unknown,
+  C extends (...res: [...ModelTypeArgs<D>, ...ModelTypeArgs<[...A]>]) => unknown,
 >(selectors: [...D], args: A, combiner?: C, keySelector?: KeySelector<any>): SelectResultWithArgs<D, C>;
 export function select<
   const D extends Array<ModelType<any> | Selector<any, any, []>>,
   const A extends SelectorArray,
-  C extends (...res: ModelTypeArgs<[...D, ...A]>) => unknown,
+  C extends (...res: [...ModelTypeArgs<D>, ...ModelTypeArgs<[...A]>]) => unknown,
   AC extends (...res: ModelTypeArgs<D>) => unknown,
 >(selectors: [...D], args: A | AC, combiner?: C, keySelector?: KeySelector<any>) {
   if (Array.isArray(args)) {
@@ -278,12 +276,12 @@ function selectProxy<D>(data: D, keys: string[], selector: any, slice: Slice): D
   );
 }
 
-function extractInitial<S>(state: S, cb: (parent: string, state: Model) => void, parent?: string) {
+function extractInitial<S>(state: S, cb: (parent: string, state: Model<unknown>) => void, parent?: string) {
   if (Array.isArray(state)) {
     return state.map(
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       (s, index: number) => getInitial(s, cb, `${index}`)
-    ) as ActualState<S>;
+    );
   } else if (typeof state == 'object') {
     if (state) {
       const keys = Object.keys(state);
@@ -300,10 +298,10 @@ function extractInitial<S>(state: S, cb: (parent: string, state: Model) => void,
     }
   }
 
-  return state as ActualState<S>;
+  return state;
 }
 
-function getInitial<S>(state: S, cb: (parent: string, state: Model) => void, parent?: string): S {
+function getInitial<S>(state: S, cb: (parent: string, state: Model<unknown>) => void, parent?: string): S {
   if (state) {
     const model = (state as any).$$model;
     if (model) {
@@ -354,8 +352,8 @@ export function as<Type>(defaultValue?: Type) {
   return defaultValue;
 }
 
-export function asModel<M extends ModelCore>(model: M): M | undefined;
-export function asModel<M extends ModelCore>(model: M, defaultValue: ActualState<M['$$type']>): M;
+// export function asModel<M extends ModelCore>(model: M): M | undefined;
+export function asModel<M extends ModelCore>(model: M, defaultValue?: ActualState<M['$$type']>): M | undefined;
 export function asModel<M extends ModelCore>(model: M, defaultValue?: ActualState<M['$$type']>) {
   return { $$model: model, $$state: defaultValue };
 }
@@ -384,53 +382,49 @@ export function model<
   const nestedReducers: Record<string, CaseReducer<ActualState<D>, PayloadAction<any>>> = {};
   const nestedAsyncReducers: Record<string, { payload: any; config: any; type: string }> = {};
 
-  const state = getInitial(
-    initialState,
-    // @ts-ignore possile infinite error
-    (k, d) => {
-      nestedSlices[`${name}/${k}`] = [];
-      for (let act in d.$$actions) {
-        let parent: string[] = [];
-        if (act.indexOf('/') > -1) {
-          const keys = act.split('/');
-          act = keys.pop() as string;
-          parent = [...keys];
-        }
-
-        let modelAct = act;
-        let sliceKey = `${name}/${k}`;
-        if (parent.length) {
-          modelAct = `${parent.join('/')}/${act}`;
-          sliceKey = `${name}/${k}/${parent.join('/')}`;
-        }
-
-        if (d.$$asyncReducers[modelAct]) {
-          nestedAsyncReducers[`${k}/${modelAct}`] = { ...d.$$asyncReducers[modelAct], type: `${d.$$name}/${modelAct}` };
-        } else {
-          nestedReducers[`${k}/${modelAct}`] = (state, action: PayloadAction<{ $$data: any; $$keys: string[] }>) => {
-            const keys = action.payload.$$keys;
-
-            const nestedAction = {
-              type: `${d.$$name}/${modelAct}`,
-              payload: parent.length ? action.payload : action.payload.$$data,
-            };
-
-            if (keys.length) {
-              applyNested(state, keys, nestedAction, d.$$reducer);
-            } else {
-              d.$$reducer(state, nestedAction);
-            }
-          };
-        }
-
-        if (!nestedSlices[sliceKey]) {
-          nestedSlices[sliceKey] = [];
-        }
-
-        nestedSlices[sliceKey].push(act);
+  const state = getInitial(initialState, (k, d) => {
+    nestedSlices[`${name}/${k}`] = [];
+    for (let act in d.$$actions) {
+      let parent: string[] = [];
+      if (act.indexOf('/') > -1) {
+        const keys = act.split('/');
+        act = keys.pop() as string;
+        parent = [...keys];
       }
+
+      let modelAct = act;
+      let sliceKey = `${name}/${k}`;
+      if (parent.length) {
+        modelAct = `${parent.join('/')}/${act}`;
+        sliceKey = `${name}/${k}/${parent.join('/')}`;
+      }
+
+      if (d.$$asyncReducers[modelAct]) {
+        nestedAsyncReducers[`${k}/${modelAct}`] = { ...d.$$asyncReducers[modelAct], type: `${d.$$name}/${modelAct}` };
+      } else {
+        nestedReducers[`${k}/${modelAct}`] = (state, action: PayloadAction<{ $$data: any; $$keys: string[] }>) => {
+          const keys = action.payload.$$keys;
+
+          const nestedAction = {
+            type: `${d.$$name}/${modelAct}`,
+            payload: parent.length ? action.payload : action.payload.$$data,
+          };
+
+          if (keys.length) {
+            applyNested(state, keys, nestedAction, d.$$reducer);
+          } else {
+            d.$$reducer(state, nestedAction);
+          }
+        };
+      }
+
+      if (!nestedSlices[sliceKey]) {
+        nestedSlices[sliceKey] = [];
+      }
+
+      nestedSlices[sliceKey].push(act);
     }
-  );
+  });
 
   const asyncReducers: Record<string, { payload: any; config: any }> = {};
 
@@ -514,73 +508,69 @@ export function model<
     return state[name];
   };
 
-  return new Proxy(
-    // @ts-ignore possible infinite error
-    {} as Model<D, R, S>,
-    {
-      get(_target, k: string) {
-        if (k == '$$reducer') return slice.reducer;
-        if (k == '$$asyncReducers') return asyncReducers;
-        if (k == '$$selector') return nestedSelectors[name];
-        if (k == '$$name') return name;
-        if (k == '$$state') return initialState;
-        if (k == '$$actions') return slice.actions;
-        if (k == '$$selectors') return slice.selectors;
-        if (k == 'reducer') return () => ({ [name]: slice.reducer });
+  return new Proxy({} as Model<D, R, S>, {
+    get(_target, k: string) {
+      if (k == '$$reducer') return slice.reducer;
+      if (k == '$$asyncReducers') return asyncReducers;
+      if (k == '$$selector') return nestedSelectors[name];
+      if (k == '$$name') return name;
+      if (k == '$$state') return initialState;
+      if (k == '$$actions') return slice.actions;
+      if (k == '$$selectors') return slice.selectors;
+      if (k == 'reducer') return () => ({ [name]: slice.reducer });
 
-        if (k.startsWith('use')) {
-          if (k == 'useAll') {
-            return () => {
-              const dispatch = useDispatch();
-              const selected = useSelector(nestedSelectors[name]);
-              return withActionProxy(selected, [], dispatch, slice);
-            };
-          }
-
-          const useKey = k.substring(3);
-          const usekey = `${useKey.charAt(0).toLowerCase()}${useKey.substring(1)}`;
-
-          const action: any = slice.actions[useKey] || slice.actions[usekey];
-          if (action !== undefined) {
-            return () => {
-              const dispatch = useDispatch();
-              return (payload: any) => dispatch(action(payload));
-            };
-          }
-
-          const selector: any = (slice.selectors as any)[useKey] || (slice.selectors as any)[usekey];
-          if (selector) {
-            return (...params: any[]) => useSelector((state) => selector(state, ...params));
-          }
-
-          const key = state[useKey as keyof D] ? useKey : usekey;
-
-          const nestedSelector = addSelector(key, [name], nestedSelectors[name]);
-
+      if (k.startsWith('use')) {
+        if (k == 'useAll') {
           return () => {
             const dispatch = useDispatch();
-            const selected = useSelector(nestedSelector);
-            return withActionProxy(selected, [key], dispatch, slice);
+            const selected = useSelector(nestedSelectors[name]);
+            return withActionProxy(selected, [], dispatch, slice);
           };
         }
 
-        if (slice.selectors[k as keyof typeof slice.selectors]) {
-          const selector: any = (slice.selectors as any)[k];
-          (selector as any).useSelect = (...params: any[]) => useSelector((state) => selector(state, ...params));
-        }
+        const useKey = k.substring(3);
+        const usekey = `${useKey.charAt(0).toLowerCase()}${useKey.substring(1)}`;
 
-        if (slice.actions[k as keyof typeof slice.actions]) {
-          const action: any = slice.actions[k as keyof typeof slice.actions];
-          (action as any).useAction = () => {
+        const action: any = slice.actions[useKey] || slice.actions[usekey];
+        if (action !== undefined) {
+          return () => {
             const dispatch = useDispatch();
             return (payload: any) => dispatch(action(payload));
           };
-
-          return action;
         }
 
-        return selectProxy(state[k as keyof D], [name, k], addSelector(k, [name], nestedSelectors[name]), slice);
-      },
-    }
-  );
+        const selector: any = (slice.selectors as any)[useKey] || (slice.selectors as any)[usekey];
+        if (selector) {
+          return (...params: any[]) => useSelector((state) => selector(state, ...params));
+        }
+
+        const key = state[useKey as keyof D] ? useKey : usekey;
+
+        const nestedSelector = addSelector(key, [name], nestedSelectors[name]);
+
+        return () => {
+          const dispatch = useDispatch();
+          const selected = useSelector(nestedSelector);
+          return withActionProxy(selected, [key], dispatch, slice);
+        };
+      }
+
+      if (slice.selectors[k as keyof typeof slice.selectors]) {
+        const selector: any = (slice.selectors as any)[k];
+        (selector as any).useSelect = (...params: any[]) => useSelector((state) => selector(state, ...params));
+      }
+
+      if (slice.actions[k as keyof typeof slice.actions]) {
+        const action: any = slice.actions[k as keyof typeof slice.actions];
+        (action as any).useAction = () => {
+          const dispatch = useDispatch();
+          return (payload: any) => dispatch(action(payload));
+        };
+
+        return action;
+      }
+
+      return selectProxy(state[k as keyof D], [name, k], addSelector(k, [name], nestedSelectors[name]), slice);
+    },
+  });
 }

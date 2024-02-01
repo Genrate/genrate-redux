@@ -27,12 +27,14 @@ const state = {
   }
 }
 
-export default model<UserType>(
+export type UserState = typeof state;
+
+export default model(
   'user', // slice name
   state, // slice state
   { 
     // reducers
-    set(state, action: PayloadAction<UserType>) {
+    set(state, action: PayloadAction<UserState>) {
       Object.assign(state, action.payload)
     }
   }, {
@@ -45,8 +47,8 @@ export default model<UserType>(
 
 ### Nested Slice
 
-```ts
-import { model, as, asModelList } from '@genrate/redux'
+```tsx
+import { model, as, asModelList, StateType } from '@genrate/redux'
 import { PayloadAction } from '@reduxjs/toolkit';
 
 const commentState = { 
@@ -54,7 +56,7 @@ const commentState = {
   likes: as<number>(0) 
 };
 
-const Comment =  model<>('comment', commentState, {
+const Comment =  model('comment', commentState, {
   set(state, action: PayloadAction<string>) {
     state.message = action.payload
   },
@@ -69,8 +71,12 @@ const postState = {
   comments: asModelList(Comment, []) // as type model array
 }
 
-const Post = model<Post>('post', postState, 
-  ({ reducer, asyncThunk }) => ({ // ReducerCreators
+type PostState = StateType<typeof postState>
+
+const Post = model('post', postState, 
+  
+  // ReducerCreators
+  ({ reducer, asyncThunk }) => ({ 
     set: reducer<string>(state, { payload }) {
       state.content = payload
     },
@@ -92,6 +98,8 @@ const Post = model<Post>('post', postState,
         },
       },
     )
+
+  // selectors
   }), {
     commentsWithLikes: (state) => state.comments.filter(c => c.likes > 0)
   }
@@ -103,21 +111,23 @@ const Post = () => {
   const content = Post.useContent()
   const comments = Post.useCommentsWithLikes();
 
-  const addComment = Post.useAddComment()
+  const addComment = Post.useAddComment();
   
   return (
     <div>
       <span>
         {content}
       </span>
-      {comments.map((comment, i) => (
-        <div key={i}>
-          <button onClick={() => comment.addLike()} /> // inherit model actions
-          <span>
-            {comment.message}
-          </span>
-        </div>
-      ))}
+      {comments.map(
+        (comment, i) => (
+          <div key={i}>
+            <button onClick={() => comment.addLike()} /> // inherit model actions
+            <span>
+              {comment.message}
+            </span>
+          </div>
+        )
+      )}
     </div>
   )
 }
@@ -151,7 +161,7 @@ const isPlayingBasketball = hasHobby.useSelect('basketball');
 
 ### Slice in react
 
-```ts
+```tsx
 import User from './models/user'
 
 const Component = () => {
@@ -181,7 +191,7 @@ const Component = () => {
 
 ```
 ### RTX Query 
-```ts
+```tsx
 import { fetch } from '@genrate/redux'
 
 const { api, get, post } = fetch('posts')

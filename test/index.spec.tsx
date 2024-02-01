@@ -20,13 +20,13 @@ const testSlice = model(
   state,
   {
     setWord(state, { payload }: PayloadAction<string>) {
-      state.word = payload as string;
+      state.word = payload;
     },
     setNum(state, { payload }: PayloadAction<[number, number]>) {
-      state.num = payload[0] as number;
+      state.num = payload[0];
       state.car = {
         ...state.car,
-        wheelsNum: payload[1] as number,
+        wheelsNum: payload[1],
       };
     },
   },
@@ -264,8 +264,9 @@ const TestCounters = () => {
           main?.counterTest?.setSingle({
             word: 'counter',
           } as TestState);
-          add({ value: 1, status: 'idle', counterTest: undefined, counterTest2: [] } as Counter);
-          add({ value: 2, status: 'idle', counterTest: undefined, counterTest2: [] } as Counter);
+          const counter: Counter = { value: 1, status: 'idle', counterTest: undefined, counterTest2: [] };
+          add(counter);
+          add({ ...counter, value: 2 });
         }}
       />
 

@@ -45,10 +45,14 @@ type CustomDefinitions<BQ extends BaseQueryFn, Q extends Record<string, any>> = 
 export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQuery: BQ) {
   const query =
     (method: Method) =>
-    <R, P>(
+    <R, P = void>(
       query: (arg: P) => BaseQueryArg<BQ>,
       options?: QueryExtraOptions<string, R, P, BQ, string> & {
-        transform?: (baseQueryReturnValue: BaseQueryResult<BQ>, meta: BaseQueryMeta<BQ>, arg: P) => R | Promise<R>;
+        transform?: <BQR extends BaseQueryResult<BQ>, M extends BaseQueryMeta<BQ>>(
+          baseQueryReturnValue: BQR,
+          meta: M,
+          arg: P
+        ) => R | Promise<R>;
         tags?: ResultDescription<string, R, P, BaseQueryError<BQ>, BaseQueryMeta<BQ>>;
         extra?: BaseQueryExtraOptions<BQ>;
         sharing?: boolean;
@@ -68,7 +72,7 @@ export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQ
       } as OmitFromUnion<QueryDefinition<P, BQ, string, R, string>, 'type'>);
 
   const queryFn =
-    <R, P>(
+    <R, P = any>(
       queryFn: (
         arg: P,
         api: BaseQueryApi,
@@ -86,10 +90,14 @@ export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQ
       >);
 
   const mutate = (method: string) => {
-    return <R, P>(
+    return <R, P = void>(
         query: (arg: P) => BaseQueryArg<BQ>,
         options?: MutationExtraOptions<string, R, P, BQ, string> & {
-          transform?: (baseQueryReturnValue: BaseQueryResult<BQ>, meta: BaseQueryMeta<BQ>, arg: P) => R | Promise<R>;
+          transform?: <BQR extends BaseQueryResult<BQ>, M extends BaseQueryMeta<BQ>>(
+            baseQueryReturnValue: BQR,
+            meta: M,
+            arg: P
+          ) => R | Promise<R>;
           tags?: ResultDescription<string, R, P, BaseQueryError<BQ>, BaseQueryMeta<BQ>>;
           extra?: BaseQueryExtraOptions<BQ>;
           sharing?: boolean;
@@ -110,6 +118,18 @@ export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQ
       };
   };
 
+  const endpoints =
+    <Q extends Record<string, any>>(queries: Q) =>
+    (build: EndpointBuilder<BQ, string, string>) => {
+      const definitions = {} as CustomDefinitions<BQ, Q>;
+
+      for (const q in queries) {
+        definitions[q] = queries[q](build);
+      }
+
+      return definitions;
+    };
+
   return {
     api<
       Q extends Record<string, any>,
@@ -119,18 +139,11 @@ export function request<N extends string, BQ extends BaseQueryFn>(name: N, baseQ
       return createApi({
         reducerPath,
         baseQuery,
-        endpoints: (build) => {
-          const definitions = {} as CustomDefinitions<BQ, Q>;
-
-          for (const q in queries) {
-            definitions[q] = queries[q](build);
-          }
-
-          return definitions;
-        },
+        endpoints: endpoints(queries),
         ...options,
       });
     },
+    endpoints,
     query,
     mutate,
     queryFn,
